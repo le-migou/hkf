@@ -6,4 +6,4 @@ CXXFLAGS=-std=c++2b -Wall -Wextra \
 
 LDLIBS+=-lfmt
 
-supcrt24: supcrt25.cpp sprons92.hpp format_strings.hpp
+supcrt25: supcrt25.cpp sprons92.hpp format_strings.hpp
