@@ -6,7 +6,7 @@
 #include <ranges>
     using namespace std::literals;
 #include <fmt/core.h>
-    using fmt::print;
+    using fmt::println, fmt::print;
 #include "format_strings.hpp"
 
     namespace
@@ -14,7 +14,7 @@ detail
 {
 /*
     namespace
-lagacy
+legacy
 {
     // Born functions from the supcrt92 paper are considered lagacy here because
     // we use the IAPWS formulation.
@@ -102,7 +102,7 @@ lagacy
               (pow (t, 4.8) + a_f_1 * pow (t, 16))
             * (a_f_2 * pow (p, 3) + a_f_3 * pow (p, 4))
         ;
-        print ("    f: T= {}, P= {}. f= {}\n", T, P, r);
+        println ("    f: T= {}, P= {}. f= {}", T, P, r);
         return 
               (pow (t, 4.8) + a_f_1 * pow (t, 16))
             * (a_f_2 * pow (p, 3) + a_f_3 * pow (p, 4))
@@ -215,8 +215,10 @@ lagacy
         // D in g/cm^3
         // P in bar
             using std::pow;
+            [[maybe_unused]]
             const auto
         a = a_g (t);
+            [[maybe_unused]]
             const auto
         b = b_g (t);
             const auto
@@ -346,7 +348,7 @@ skarn = run_t
       .filename_con = "file not saved"
     , .filename_rxn = "skarn.rxn"
     , .filename_databse = "dprons92.dat"
-    , .filename_tab = "skdef1.tab"
+    , .filename_tab = "skarn.tab"
     , .filename_plt = "skdef1.kxy"
     , .isat = 0
     , .iopt = 2
@@ -435,8 +437,9 @@ molar_volume (sprons92::aqueous_species_t const& data, double T, double P)
         - omega * Q
         - (Z + 1) * domegadp
     );
-    print (
-          "D= {}\nZ= {}\nQ= {}\nomega_ref= {}\nr_ref= {}\ng = {}\nr= {}\nomega= {}\ndomegadp= {}\nmolar_volume= {}\n"
+    /*
+    println (
+          "D= {}\nZ= {}\nQ= {}\nomega_ref= {}\nr_ref= {}\ng = {}\nr= {}\nomega= {}\ndomegadp= {}\nmolar_volume= {}"
         , D
         , Z
         , Q
@@ -448,6 +451,7 @@ molar_volume (sprons92::aqueous_species_t const& data, double T, double P)
         , domegadp
         , r_
     );
+    */
     return r_;
     /*
     return 41.84 * (
@@ -498,6 +502,7 @@ heat_capacity_isobaric (sprons92::aqueous_species_t const& data, double T, doubl
     dgdtt = detail::dg_dtt(T, D, P);
     // The code does not consider the temperature dependency of Z when
     // differentiating omega, react92d.f:845.
+        [[maybe_unused]]
         const auto
     domegadt = eta * ( -fabs (pow (Z, 3)) / r / r + Z / pow (3.080 + g, 2)) 
         * dgdt
@@ -555,14 +560,14 @@ f (run_t const& run)
             mineral_index = sprons92::mineral_name_to_index.find (mineral.name);
             if (mineral_index == sprons92::mineral_name_to_index.end ())
             {
-                print ("Mineral not found: {}\n", mineral.name);
+                println ("Mineral not found: {}", mineral.name);
                 exit (1);
             }
                 const auto&
             data = sprons92::minerals.at (mineral_index->second);
             minerals.emplace_back (mineral.coefficient, data);
-            print (
-                  "      {:9.3f}   {:20}   {:30}\n"
+            println (
+                  "      {:9.3f}   {:20}   {:30}"
                 , mineral.coefficient
                 , mineral.name
                 , data.chemical_formula_structural
@@ -577,14 +582,14 @@ f (run_t const& run)
             gas_index = sprons92::gas_name_to_index.find (gas.name);
             if (gas_index == sprons92::gas_name_to_index.end ())
             {
-                print ("gas not found: {}\n", gas.name);
+                println ("gas not found: {}", gas.name);
                 exit (1);
             }
                 const auto&
             data = sprons92::gases.at (gas_index->second);
             gases.emplace_back (gas.coefficient, data);
-            print (
-                  "      {:9.3f}   {:20}   {:30}\n"
+            println (
+                  "      {:9.3f}   {:20}   {:30}"
                 , gas.coefficient
                 , gas.name
                 , data.chemical_formula_structural
@@ -599,21 +604,21 @@ f (run_t const& run)
             aqueous_species_index = sprons92::aqueous_species_name_to_index.find (aq_species.name);
             if (aqueous_species_index == sprons92::aqueous_species_name_to_index.end ())
             {
-                print ("aqueous_species not found: {}\n", aq_species.name);
+                println ("aqueous_species not found: {}", aq_species.name);
                 exit (1);
             }
                 const auto&
             data = sprons92::aqueous_species.at (aqueous_species_index->second);
             aqueous_species.emplace_back (aq_species.coefficient, data);
-            print (
-                  "      {:9.3f}   {:20}   {:30}\n"
+            println (
+                  "      {:9.3f}   {:20}   {:30}"
                 , aq_species.coefficient
                 , aq_species.name
                 , data.chemical_formula_structural
             );
         }
-        print (
-              "      {:9.3f}   {:20}   {:30}\n"
+        println (
+              "      {:9.3f}   {:20}   {:30}"
             , rxn.h2o
             , "H2O"
             , "H2O"
@@ -628,8 +633,8 @@ f (run_t const& run)
         {
                 const auto
             cp = data.a[0] + data.b[0] * T + data.c[0] / T / T;
-            print (
-                  "  {:20}  {:10.0f}     {:10.0f}        {:8.3f}       {:8.3f}        {:6.1f}      \n"
+            println (
+                  "  {:20}  {:10.0f}     {:10.0f}        {:8.3f}       {:8.3f}        {:6.1f}      "
                 , data.name
                 , data.DG
                 , data.DH
@@ -643,8 +648,8 @@ f (run_t const& run)
         {
             if (data.phase_transition_count == 0)
             {
-                print (
-                      "  {:20} {:9.3f}   {:9.3f}   {:9.3f}     {:7.2f}\n"
+                println (
+                      "  {:20} {:9.3f}   {:9.3f}   {:9.3f}     {:7.2f}"
                     , data.name
                     , data.a[0]
                     , data.b[0] * 1e3
@@ -684,8 +689,8 @@ f (run_t const& run)
         {
                 const auto
             cp = data.a + data.b * T + data.c / T / T;
-            print (
-                  "  {:20}   {:10.0f}     {:10.0f}       {:8.3f}          {:2.0f}           {:6.1f}      \n"
+            println (
+                  "  {:20}   {:10.0f}     {:10.0f}       {:8.3f}          {:2.0f}           {:6.1f}      "
                 , data.chemical_formula_structural
                 , data.DG
                 , data.DH
@@ -697,8 +702,8 @@ f (run_t const& run)
         print (header_gases_2);
         for (const auto& [coeff, data]: gases)
         {
-            print (
-                  "  {:20} {:9.3f}   {:9.3f}   {:9.3f}     {:7.2f}      \n"
+            println (
+                  "  {:20} {:9.3f}   {:9.3f}   {:9.3f}     {:7.2f}      "
                 , data.chemical_formula_structural
                 , data.a
                 , data.b * 1e3
@@ -713,8 +718,8 @@ f (run_t const& run)
             V = hkf::molar_volume (data, T, P);
                 const auto
             cp = hkf::heat_capacity_isobaric (data, T, P);
-            print (
-                  "  {:20}   {:10.0f}     {:10.0f}       {:8.3f}          {:2.0f}           {:6.1f}      \n"
+            println (
+                  "  {:20}   {:10.0f}     {:10.0f}       {:8.3f}          {:2.0f}           {:6.1f}      "
                 , data.chemical_formula_structural
                 , data.DG
                 , data.DH
@@ -722,6 +727,9 @@ f (run_t const& run)
                 , V
                 , cp
             );
+        }
+        // H2O
+        {
         }
         /*
         print (header_aqueous_species_2);
