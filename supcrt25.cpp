@@ -1,283 +1,18 @@
 #include "sprons92.hpp"
+#include "hkf.hpp"
 #include "calculisto/iapws/r6_inverse.hpp"
 #include "calculisto/iapws/r8.hpp"
-    using namespace calculisto::iapws;
+#include "born.hpp"
+
+    using namespace calculisto::thermodynamics;
 #include <vector>
+#include <algorithm>
 #include <ranges>
+#include <numbers>
     using namespace std::literals;
 #include <fmt/core.h>
     using fmt::println, fmt::print;
 #include "format_strings.hpp"
-
-    namespace
-detail
-{
-/*
-    namespace
-legacy
-{
-    // Born functions from the supcrt92 paper are considered lagacy here because
-    // we use the IAPWS formulation.
-        constexpr auto
-    a_e_1 = 0.1470333593e2;
-        constexpr auto
-    a_e_2 = 0.2128462733e3;
-        constexpr auto
-    a_e_3 = -0.1154445173e3;
-        constexpr auto
-    a_e_4 = 0.1955210915e2;
-        constexpr auto
-    a_e_5 = -0.8330347980e2;
-        constexpr auto
-    a_e_6 = 0.3213240048e2;
-        constexpr auto
-    a_e_7 = -0.6694098645e1;
-        constexpr auto
-    a_e_8 = -0.3786202045e2;
-        constexpr auto
-    a_e_9 = 0.6887359646;
-        constexpr auto
-    a_e_10 = -0.2729401652e2;
-        constexpr auto
-    k_1 (auto const& T_hat)
-    {
-        return a_e_1 / T_hat;;
-    }
-        constexpr auto
-    k_2 (auto const& T_hat)
-    {
-        return a_e_2 / T_hat + a_e_3 + a_e_4 * T_hat;
-    }
-        constexpr auto
-    k_3 (auto const& T_hat)
-    {
-        return a_e_5 / T_hat + a_e_6 + a_e_7 * T_hat * T_hat;
-    }
-        constexpr auto
-    k_4 (auto const& T_hat)
-    {
-        return a_e_8 / T_hat / T_hat + a_e_9 / T_hat + a_e_10;
-    }
-        constexpr auto
-    epsilon (auto const& T, auto const& D)
-    {
-            const auto
-        T_hat = T / 298.15;
-            const auto
-        rho_hat = D / 1e3;
-            using std::pow;
-        return 
-              1.
-            + k_1 (T_hat) * rho_hat
-            + k_2 (T_hat) * pow (rho_hat, 2)
-            + k_3 (T_hat) * pow (rho_hat, 3)
-            + k_4 (T_hat) * pow (rho_hat, 4)
-        ;
-    }
-        constexpr auto
-    Z (auto const& T, auto const& D)
-    {
-        return 1 / epsilon (T, D);
-    }
-} // namespace legacy
-*/
-    // HKF
-        constexpr auto
-    a_f_1 = 0.3666666e2;
-        constexpr auto
-    a_f_2 = -0.1504956e-9;
-        constexpr auto
-    a_f_3 = 0.5017997e-13;
-
-        constexpr auto
-    f (const auto& T, auto const& P)
-    {
-            const auto
-        t = (T - 155) / 300;
-            const auto
-        p = 1000 - P;
-            using std::pow;
-            const auto
-        r = 
-              (pow (t, 4.8) + a_f_1 * pow (t, 16))
-            * (a_f_2 * pow (p, 3) + a_f_3 * pow (p, 4))
-        ;
-        println ("    f: T= {}, P= {}. f= {}", T, P, r);
-        return 
-              (pow (t, 4.8) + a_f_1 * pow (t, 16))
-            * (a_f_2 * pow (p, 3) + a_f_3 * pow (p, 4))
-        ;
-
-    }
-        constexpr auto
-    df_dp (const auto& T, auto const& P)
-    {
-            const auto
-        t = (T - 155.) / 300;
-            const auto
-        p = 1000. - P;
-            using std::pow;
-        return
-              (pow (t, 4.8) + a_f_1 * pow (t, 16))
-            * (3 * a_f_2 * pow (p, 2) + 4 * a_f_3 * pow (p, 3))
-        ;
-    }
-        constexpr auto
-    df_dt (const auto& T, auto const& P)
-    {
-            const auto
-        t = (T - 155.) / 300;
-            const auto
-        p = 1000. - P;
-            using std::pow;
-        return
-              (0.016 * pow (t, 3.8) + 16 * a_f_1 * pow (t, 15) / 300)
-            * (3 * a_f_2 * pow (p, 2) + 4 * a_f_3 * pow (p, 3))
-        ;
-    }
-        constexpr auto
-    df_dtt (const auto& T, auto const& P)
-    {
-            const auto
-        t = (T - 155.) / 300;
-            const auto
-        p = 1000. - P;
-            using std::pow;
-        return
-              (0.0608  * pow (t, 2.8) /300 + a_f_1 * pow (t, 14) / 375)
-            * (3 * a_f_2 * pow (p, 2) + 4 * a_f_3 * pow (p, 3))
-        ;
-    }
-
-        constexpr auto
-    a_g_1 = -0.2037662e1;
-//          -0.2037662D+01
-        constexpr auto
-    a_g_2 = 0.5747000e-2;
- //         0.5747000D-02
-        constexpr auto
-    a_g_3 = -0.6557892e-5;
-  //        -0.6557892D-05
-        constexpr auto
-    b_g_1 = 0.6107361e1;
-   //       0.6107361D+01
-        constexpr auto
-    b_g_2 = -0.1074377e-1;
-//          -0.1074377D-01
-        constexpr auto
-    b_g_3 = 0.1268348e-4;
-//          0.1268348D-04 
-
-
-        constexpr auto
-    a_g (const auto& T)
-    {
-        return a_g_1 + a_g_2 * T + a_g_3 * T * T;
-    }
-        constexpr auto
-    da_g_dt (const auto& T)
-    {
-        return a_g_2 + 2 * a_g_3 * T;
-    }
-        constexpr auto
-    da_g_dtt (/*const auto& T*/)
-    {
-        return 2 * a_g_3;
-    }
-        constexpr auto
-    b_g (const auto& T)
-    {
-        return b_g_1 + b_g_2 * T + b_g_3 * T * T;
-    }
-        constexpr auto
-    db_g_dt (const auto& T)
-    {
-        return b_g_2 + 2 * b_g_3 * T;
-    }
-        constexpr auto
-    db_g_dtt (/*const auto& T*/)
-    {
-        return 2 * b_g_3;
-    }
-    // eq. 49
-        constexpr auto
-    g (const auto& T, auto const& D, auto const& P)
-    {
-        // T: K -> °C
-            const auto
-        t = T - 273.15;
-        // D: kg/m3 -> g/cm3
-            const auto
-        d = D / 1e3;
-            const auto
-        p [[maybe_unused]] = P * 1e5;
-        // T in °C
-        // D in g/cm^3
-        // P in bar
-            using std::pow;
-            [[maybe_unused]]
-            const auto
-        a = a_g (t);
-            [[maybe_unused]]
-            const auto
-        b = b_g (t);
-            const auto
-        r = a_g (t) * pow (1. - d, b_g (t)) - (t >= 155. && t <= 355 ? f (t, P) : 0.);
-        return r;
-    }
-        constexpr auto
-    dg_dp (const auto& T, auto const& D, auto const& P)
-    {
-            const auto
-        t = T - 273.15;
-            const auto
-        d = D / 1e3;
-            [[maybe_unused]]
-            const auto
-        p = P * 1e5;
-            const auto
-        b = b_g (t);
-            using std::pow;
-        return -a_g (t) * b * pow (1. - d, b - 1) - (t >= 155. && t <= 355 ? f (t, P) : 0.);
-    //f (t, P);
-    }
-        constexpr auto
-    dg_dt (const auto& T, auto const& D, auto const& P)
-    {
-            const auto
-        t = T - 273.15;
-            const auto
-        d = D / 1e3;
-            const auto
-        p [[maybe_unused]] = P * 1e5;
-            using std::pow;
-        return pow (1. - d, b_g (t)) * (
-            da_g_dt (t) + a_g (t) * db_g_dt (t) * log (1 - d)
-        ) - df_dt (t, P);
-    }
-        constexpr auto
-    dg_dtt (const auto& T, auto const& D, auto const& P)
-    {
-            const auto
-        t = T - 273.15;
-            const auto
-        d = D / 1e3;
-            const auto
-        p [[maybe_unused]] = P * 1e5;
-            const auto
-        a = a_g (t);
-            const auto
-        db = db_g_dt (t);
-            using std::pow;
-        return pow (1. - d, b_g (t)) * (
-            da_g_dtt () + log (1 - d) * (
-                  2 * da_g_dt (t) * db 
-                + a * db * db * log (1 - d) 
-                + a * db_g_dtt ()
-            )
-        ) - df_dt (t, P);
-    }
-} // namespace detail
 
 
     struct
@@ -345,7 +80,7 @@ run_t
     const auto
 skarn = run_t
 {
-      .filename_con = "file not saved"
+      .filename_con = "skarn.con"
     , .filename_rxn = "skarn.rxn"
     , .filename_databse = "dprons92.dat"
     , .filename_tab = "skarn.tab"
@@ -394,7 +129,7 @@ print_or_not (double value, std::string_view format, int width)
 }
 
     namespace
-hkf
+calculisto::thermodynamics::hkf
 {
 // EOS for aqueous_species (eq. 45)
     constexpr auto
@@ -405,11 +140,17 @@ molar_volume (sprons92::aqueous_species_t const& data, double T, double P)
         const auto
     T_ = T - 228; // K
         const auto
-    D = r6_inverse::density_pt (P * 1e5, T); // kg/m3
+    D = iapws::r6_inverse::density_pt (P * 1e5, T);
         const auto
-    Z = r8::born::z (D, T);
+    dDdP = 1 / iapws::r6::d_pressure_d_density_dt (D, T);
         const auto
-    Q = r8::born::q (D, T);
+    dEdD = iapws::r8::d_relative_permittivity_d_density_at_temperature_dt (D, T);
+        const auto
+    E = iapws::r8::relative_permittivity_dt (D, T);
+        const auto
+    Z = born::z (E);
+        const auto
+    Q = born::q (E, dDdP, dEdD);
         constexpr auto
     eta = 1.66027e5; // Å.cal.mol-1
     // This is eq. 56. The code adds a `gref` term here that doesn't appear in
@@ -429,7 +170,7 @@ molar_volume (sprons92::aqueous_species_t const& data, double T, double P)
         * dg_dp;
     
         const auto
-    r_ = 41.84 * (
+    r_ = bar_cm3_per_calorie * (
           data.a_1 
         + data.a_2 / P_ 
         + data.a_3 / T_ 
@@ -437,65 +178,47 @@ molar_volume (sprons92::aqueous_species_t const& data, double T, double P)
         - omega * Q
         - (Z + 1) * domegadp
     );
-    /*
-    println (
-          "D= {}\nZ= {}\nQ= {}\nomega_ref= {}\nr_ref= {}\ng = {}\nr= {}\nomega= {}\ndomegadp= {}\nmolar_volume= {}"
-        , D
-        , Z
-        , Q
-        , data.omega
-        , re_ref
-        , g
-        , r
-        , omega
-        , domegadp
-        , r_
-    );
-    */
     return r_;
-    /*
-    return 41.84 * (
-          data.a_1 
-        + data.a_2 / P_ 
-        + data.a_3 / T_ 
-        + data.a_4 / P_ / T_
-        - omega * Q
-        - (Z + 1) * domegadp
-    );
-    */
 }
 // eq. 62
     constexpr auto
 heat_capacity_isobaric (sprons92::aqueous_species_t const& data, double T, double P)
 {
         const auto
-    P_ = P + 2600e5;
+    Psi = 2600.; // bar
         const auto
-    T_ = T - 228;
+    Theta = 228.; // K
         const auto
-    D = r6_inverse::density_pt (P, T);
+    D = iapws::r6_inverse::density_pt (P * 1e5, T);
         const auto
-    X = r8::born::x (D, T);
+    dDdT = iapws::r6::d_density_d_temperature_dt (D, T);
         const auto
-    Y = r8::born::y (D, T);
+    E = iapws::r8::relative_permittivity_dt (D, T);
         const auto
-    Z = r8::born::z (D, T);
+    dEdT = iapws::r8::d_relative_permittivity_d_temperature_at_density_dt (D, T);
+        const auto
+    dEdD = iapws::r8::d_relative_permittivity_d_density_at_temperature_dt (D, T);
+        const auto
+    d2EdT = iapws::r8::d_relative_permittivity_d2_temperature_at_pressure_dt(D, T, dDdT);
+        const auto
+    Z = born::z (E);
+        const auto
+    Y = born::y (E, dEdT, dEdD, dDdT);
+        const auto
+    X = born::x (E, d2EdT, Y);
         constexpr auto
     eta = 1.66027e5; // Å.cal.mol-1
     // This is eq. 56. The code adds a `gref` term here that doesn't appear in
     // the paper. The code is at react92d.f:838.
+    // News flash: gref is in fact set to zero. 
         const auto
     re_ref = Z * Z / (data.omega / eta + Z / 3.082);
         const auto
-    g = detail::g (D / r8::detail::molar_mass_of_water, T, P);
+    g = detail::g (D / iapws::molar_mass, T, P);
         const auto
     r = re_ref + fabs (Z) * g;
         const auto
     omega = eta * (Z * Z / r - Z / (3.082 + g));
-        const auto
-    domegadp = eta * ( -fabs (pow (Z, 3)) / r / r + Z / pow (3.080 + g, 2)) 
-        * detail::dg_dp(T, D, P)
-    ;
         const auto
     dgdt = detail::dg_dt(T, D, P);
         const auto
@@ -504,26 +227,411 @@ heat_capacity_isobaric (sprons92::aqueous_species_t const& data, double T, doubl
     // differentiating omega, react92d.f:845.
         [[maybe_unused]]
         const auto
-    domegadt = eta * ( -fabs (pow (Z, 3)) / r / r + Z / pow (3.080 + g, 2)) 
+    domegadt = -eta * (fabs (pow (Z, 3)) / r / r - Z / pow (3.080 + g, 2)) 
         * dgdt
     ;
         const auto
-    domegadtt = eta * (
-          2 * dgdt * dgdt * (pow (Z, 4) / pow (r, 3) - Z / pow (3.080 + g, 3))
-        - dgdtt * (fabs (pow (Z, 3)) / pow (r, 2) - Z / pow (3.080 + g, 2))
-    );
-    return data.c_1 + data.c_2 / T_ / T_ - 2 * T / pow (T_, 3) * (
-            data.a_3 * (P - 1e5) + data.a_4 * log (P_ / (2600e5 + 1e5))
+    domegadtt = 
+          2 * eta * (
+            fabs ((pow (Z, 4)) / pow (r, 3) - Z / pow (3.080 + g, 3))
+          ) * dgdt * dgdt 
+        - eta * (
+            fabs (pow (Z, 3)) / r / r - Z / pow (3.080 + g, 2)
+        ) * dgdtt
+    ;
+    return 
+          data.c_1 + data.c_2 / pow (T - Theta, 2) 
+        - 2 * T / pow (T - Theta, 3) * (
+            data.a_3 * (P - 1) + data.a_4 * log ((P + Psi) / (Psi + 1))
         ) 
         + omega * T * X 
-        + 2 * T * Y * domegadp 
+        + 2 * T * Y * domegadt 
         + T * (Z + 1) * domegadtt
     ;
+} 
+
+    namespace
+detail
+{
+    constexpr auto
+Cp (auto T, auto a, auto b, auto c)
+{
+        const auto
+    r = a + b * T + c / T / T;
+    return r;
+}
+    constexpr auto
+int_Cp_dT (auto T1, auto T2, auto a, auto b, auto c)
+{
+    return a * (T2 - T1) + b / 2 * (T2 * T2 - T1 * T1) - c * (1 / T2 - 1 / T1);
+}
+    constexpr auto
+int_Cp_dlnT (auto T1, auto T2, auto a, auto b, auto c)
+{
+    return a * log (T2 / T1) + b * (T2 - T1) - c / 2 * (1 / T2 / T2 - 1 / T1 / T1);
+}
+} // namespace detail
+
+// Thermodynamic properties of mineral and gases
+// Eqs. 77-81
+    auto
+thermodynamic_properties (sprons92::mineral_t const& data, double T, double P)
+{
+        using std::min;
+        auto
+    Ta = T_ref;
+        auto
+    Tb = min (T, data.T[0]);
+        auto
+    V = data.V;
+        auto
+    S = 
+          data.S 
+        + detail::int_Cp_dlnT (Ta, Tb, data.a[0], data.b[0], data.c[0])
+    ;
+        auto
+    int_V_dP = data.V * (P - P_ref) * calorie_per_bar_cm3;
+        auto
+    H = 
+          data.DH 
+        + detail::int_Cp_dT (Ta, Tb, data.a[0], data.b[0], data.c[0])
+        + int_V_dP
+    ;
+        auto
+    G = 
+          data.DG
+        + detail::int_Cp_dT (Ta, Tb, data.a[0], data.b[0], data.c[0])
+        - detail::int_Cp_dlnT (Ta, Tb, data.a[0], data.b[0], data.c[0]) * T
+        + int_V_dP
+    ;
+    // Phase transitions at T_t_i, P_t_i (phi_P), volume terms
+    {
+            int
+        phase_index;
+        for (phase_index = 0; phase_index <= data.max_phase_transition_count; ++phase_index)
+        {
+                const auto
+            T_t_at_P_t = data.T[phase_index] + (P - P_ref) / (data.dP_dT[phase_index] == 0 ? 1. : data.dP_dT[phase_index]);
+            if (T < T_t_at_P_t) break;
+                const auto
+            P_t_at_T_t = P_ref + (T - data.T[phase_index]) * data.dP_dT[phase_index];
+
+            // WARNING: Paper-code inconsistency here
+            // Paper: -sum_{P_{t_i,T}}^P
+            // Code: sum_{P_{ref}}^{P_{t_i,T}}
+            // Paper: eqs. 78, 79
+            // Code: reac92d.f:409,419,420,425,426
+                const auto
+            int_V_dP_tran = data.DVt [1] * (P_t_at_T_t - P_ref) * calorie_per_bar_cm3;
+
+            V += data.DVt[phase_index - 1];
+            int_V_dP += int_V_dP_tran;
+            H -= int_V_dP_tran;
+            G -= int_V_dP_tran;
+        }
+    }
+    // Phase transitions at T_t_i, P_r (phi_T), Cp terms
+        int
+    phase_index = 0;
+    for (; phase_index <= data.max_phase_transition_count; ++phase_index)
+    {
+        if (T < data.T[phase_index]) break;
+        Ta = Tb;
+        Tb = min (T, data.T[phase_index]);
+            const auto
+        int_Cp_dT = detail::int_Cp_dT (Ta, Tb, data.a[phase_index], data.b[phase_index], data.c[phase_index]);
+            const auto
+        int_Cp_dlnT = detail::int_Cp_dlnT (Ta, Tb, data.a[phase_index], data.b[phase_index], data.c[phase_index]);
+        H +=
+                int_Cp_dT
+            + data.DHt[phase_index-1]
+        ;
+        G +=
+                int_Cp_dT
+            - int_Cp_dlnT * T
+            + data.DHt[phase_index-1] * (T / data.T[phase_index - 1] - 1)
+        ;
+    }
+        const auto
+    Cp = detail::Cp (
+          T
+        , data.a[phase_index]
+        , data.b[phase_index]
+        , data.c[phase_index]
+    );
+    if (data.name == "QUARTZ" || data.name == "COESITE")
+    {
+        H -= int_V_dP;
+        G -= int_V_dP;
+            constexpr auto
+        VPrTra = 22.688e0;
+            constexpr auto
+        Vdiff = 2.047e0; 
+            constexpr auto
+        k = 38.5;
+            constexpr auto 
+        VPtTta = 0.23348e2;
+            constexpr auto
+        VPrTtb = 0.2372e2;
+            constexpr auto
+        Stran = 0.342;
+            constexpr auto
+        aa = 0.549824e3;
+            constexpr auto
+        ba = 0.65995;
+            constexpr auto
+        ca = -0.4973e-4;
+            const auto
+        Ttran = data.T[0];
+
+            const auto
+        phase = (T <= Ttran || P >= P_ref + k * (T - data.T[0])) ? 1 : 2;
+            const auto
+        [ P_star, S_star ] = [&]()
+        {
+            if (T <= data.T[0])
+            {
+                return std::tuple { P_ref, 0. };
+            }
+            if (phase == 2)
+            {
+                return std::tuple { P, 0. };
+            }
+            return std::tuple { P_ref + k * (T - Ttran), Stran };
+        }();
+        V = (phase == 2) ? VPrTtb : (
+            VPrTra 
+            + ca * (P - P_ref) 
+            + (VPtTta - VPrTra - ca * (P - P_ref)) * (T - T_ref) 
+                /
+            (Ttran + (P - P_ref) / k - T_ref)
+        );
+            const auto
+        GVterm = [&]()
+        {
+            if (data.name == "COESITE") 
+            {
+                V -= Vdiff;
+                return calorie_per_bar_cm3 * (
+                    (VPrTra - Vdiff) * (P - P_star) 
+                    + (VPrTtb - Vdiff) * (P_star - P_ref) 
+                    - 0.5 * ca * (2 * P_ref * (P - P_star) 
+                    - (P * P - P_star * P_star)) 
+                    - ca * k * (T - T_ref) * (P - P_star) 
+                    + k * (ba + aa * ca * k) * (T - T_ref) 
+                        * log ((aa + P / k) / (aa + P_star / k))
+                );
+            }
+            return calorie_per_bar_cm3 * (
+                VPrTra * (P - P_star) 
+                + VPrTtb * (P_star - P_ref) 
+                - 0.5 * ca * (2 * P_ref * (P - P_star) - (P * P - P_star * P_star))
+                - ca * k * (T - T_ref) * (P - P_star) 
+                + k * (ba + aa * ca * k) * (T - T_ref) 
+                    * log ((aa + P / k)/(aa + P_star / k))
+            );
+        }();
+            const auto
+        SVterm = calorie_per_bar_cm3 * (
+            - k * (ba + aa * ca * k) * log ((aa + P / k)/(aa + P_star / k)) 
+            + ca * k * (P - P_star)) - S_star
+        ;
+        G = G + GVterm;
+        S = S + SVterm;
+        H = H + GVterm + T * SVterm;
+    }
+    return std::tuple { V, Cp, S, H, G };
+}
+// Same as for minerals except no phase transition
+    auto
+thermodynamic_properties (sprons92::gas_t const& data, double T, double P)
+{
+        const auto
+    V = data.V;
+        const auto
+    S = 
+          data.S 
+        + detail::int_Cp_dlnT (T_ref, T, data.a, data.b, data.c)
+    ;
+        const auto
+    int_V_dP = data.V * (P - P_ref) * calorie_per_bar_cm3;
+        const auto
+    H = 
+          data.DH 
+        + detail::int_Cp_dT (T_ref, T, data.a, data.b, data.c)
+        + int_V_dP
+    ;
+        const auto
+    G = 
+          data.DG
+        + detail::int_Cp_dT (T_ref, T, data.a, data.b, data.c)
+        - detail::int_Cp_dlnT (T_ref, T, data.a, data.b, data.c) * T
+        + int_V_dP
+    ;
+        const auto
+    Cp = detail::Cp (
+          T
+        , data.a
+        , data.b
+        , data.c
+    );
+    // FIXME: H2O,g
+    return std::tuple { V, Cp, S, H, G };
+}
+
+    auto
+thermodynamic_properties (
+      sprons92::aqueous_species_t const& data
+    , auto const& T
+    , auto const& P
+    , auto const& D
+    , auto const& Q
+    , auto const& Z
+    , auto const& Y
+    , auto const& X
+){
+    // V, eq. 45
+        constexpr auto
+    Psi = 2600.;
+        constexpr auto
+    Omega = 228.;
+        const auto
+    P_plus_Psi = P + Psi; // bar
+        const auto
+    P_ref_plus_Psi = P_ref + Psi; // bar
+        const auto
+    T_minus_Omega = T - Omega; // K
+        const auto
+    T_ref_minus_Omega = T_ref - Omega; // K
+        constexpr auto
+    eta = 1.66027e5; // Å.cal.mol-1
+    // This is eq. 56. The code adds a `gref` term here that doesn't appear in
+    // the paper. The code is at react92d.f:838.
+    // News flash: gref is in fact set to zero. 
+        const auto
+    re_ref = Z * Z / (data.omega / eta + Z / 3.082);
+        const auto
+    g = D < 1e3 ? detail::g (T, D, P) : 0.;
+        const auto
+    dg_dp = D < 1e3 ? detail::dg_dp(T, D, P) : 0.;
+        const auto
+    r = re_ref + fabs (Z) * g;
+        const auto
+    omega = eta * (Z * Z / r - Z / (3.082 + g));
+        const auto
+    domegadp = eta * ( -fabs (pow (Z, 3)) / r / r + Z / pow (3.080 + g, 2)) 
+        * dg_dp;
+        const auto
+    V = bar_cm3_per_calorie * (
+          data.a_1 
+        + data.a_2 / P_plus_Psi 
+        + data.a_3 / T_minus_Omega 
+        + data.a_4 / P_plus_Psi / T_minus_Omega
+        - omega * Q
+        - (Z + 1) * domegadp
+    );
+    // Cp, eq. 62
+        const auto
+    dgdt = detail::dg_dt(T, D, P);
+        const auto
+    dgdtt = detail::dg_dtt(T, D, P);
+    // The code does not consider the temperature dependency of Z when
+    // differentiating omega, react92d.f:845.
+        [[maybe_unused]]
+        const auto
+    domegadt = -eta * (fabs (pow (Z, 3)) / r / r - Z / pow (3.080 + g, 2)) 
+        * dgdt
+    ;
+        const auto
+    domegadtt = 
+          2 * eta * (
+            fabs ((pow (Z, 4)) / pow (r, 3) - Z / pow (3.080 + g, 3))
+          ) * dgdt * dgdt 
+        - eta * (
+            fabs (pow (Z, 3)) / r / r - Z / pow (3.080 + g, 2)
+        ) * dgdtt
+    ;
+        const auto 
+    Cp =
+          data.c_1 + data.c_2 / pow (T_minus_Omega, 2) 
+        - 2 * T / pow (T_minus_Omega, 3) * (
+            data.a_3 * (P - 1) + data.a_4 * log ((P + Psi) / (Psi + 1))
+        ) 
+        + omega * T * X 
+        + 2 * T * Y * domegadt 
+        + T * (Z + 1) * domegadtt
+    ;
+    // S, eq. 61
+        constexpr auto
+    Y_at_Pr_Tr = -0.5798650444e-4 ;
+        const auto
+    S = 
+          data.S 
+        + data.c_1 * log (T / T_ref)
+        - data.c_2 / Omega * (
+              1 / T_minus_Omega 
+            - 1 / T_ref_minus_Omega
+            + 1 / Omega * log (T_ref * T_minus_Omega / T / T_ref_minus_Omega)
+          )
+        + pow (1 / T_minus_Omega, 2) * (
+              data.a_3 * (P - P_ref)
+            + data.a_4 * log (P_plus_Psi / P_ref_plus_Psi)
+          )
+        + omega * Y 
+        + (Z + 1) * domegadt
+        - data.omega * Y_at_Pr_Tr
+    ;
+    // H, eq. 60
+        constexpr auto
+    Z_at_Pr_Tr = -0.1278034682e-1;
+        const auto
+    H = 
+          data.DH
+        - data.c_1 * (T - T_ref)
+        - data.c_2 * (1 / T_minus_Omega - 1 / T_ref_minus_Omega)
+        + data.a_1 * (P - P_ref)
+        + data.a_2 * log (P_plus_Psi / P_ref_plus_Psi)
+        + 2 / T_minus_Omega / T_ref_minus_Omega / T_ref_minus_Omega * (
+              data.a_3 * (P - P_ref) 
+            + data.a_4 * log (P_plus_Psi / P_ref_plus_Psi)
+          )
+        - omega * (Z + 1)
+        + omega * T * Y
+        + T * (Z + 1) * domegadt
+        + data.omega * (Z_at_Pr_Tr + 1)
+        - data.omega * T_ref * Y_at_Pr_Tr
+    ;
+    // G, eq. 59
+        const auto
+    G = 
+          data.DG
+        - data.S * (T - T_ref)
+            // WARNING: Paper-code inconsistency here
+            // Paper: (T * log (T / T_ref) - T - T_ref)
+            // Code:  (T * log (T / T_ref) - T + T_ref)
+            // Paper: eq. 59
+            // Code: reac92d.f:794
+        - data.c_1 * (T * log (T / T_ref) - T + T_ref)
+        + data.a_1 * (P - P_ref)
+        + data.a_2 * log (P_plus_Psi / P_ref_plus_Psi)
+        - data.c_2 * (
+              (1 / T_minus_Omega - 1 / T_ref_minus_Omega) * -T_minus_Omega / Omega
+            - T / Omega / Omega * log (T_ref * T_minus_Omega / T / T_ref_minus_Omega)
+          )
+        + 1 / T_minus_Omega * (
+              data.a_3 * (P - P_ref)
+            + data.a_4 * log (P_plus_Psi / P_ref_plus_Psi)
+          )
+        - omega * (Z + 1)
+        + data.omega * (Z_at_Pr_Tr + 1)
+        + data.omega * Y_at_Pr_Tr * (T - T_ref)
+    ;
+    return std::tuple { V, Cp, S, H, G };
 }
 } // namespace hkf
-//
+
     auto
-f (run_t const& run)
+supcrt92 (run_t const& run)
 {
     print (
           header
@@ -623,10 +731,13 @@ f (run_t const& run)
             , "H2O"
             , "H2O"
         );
+        // End of Stoichiometry
+
+        // Standard state properties at:
             const auto
-        T = 273.15 + 25.;
+        T = T_ref;
             const auto
-        P = 1.; // 1 bar
+        P_in_bar = P_ref;
         // Minerals
         print (header_minerals_1);
         for (const auto& [coeff, data]: minerals)
@@ -646,41 +757,36 @@ f (run_t const& run)
         print (header_minerals_2);
         for (const auto& [coeff, data]: minerals)
         {
-            if (data.phase_transition_count == 0)
-            {
-                println (
-                      "  {:20} {:9.3f}   {:9.3f}   {:9.3f}     {:7.2f}"
-                    , data.name
-                    , data.a[0]
-                    , data.b[0] * 1e3
-                    , data.c[0] * 1e-5
-                    , data.T_max - 273.15
-                );
-                continue;
-            }
             print (
-                  "  {:20} {:9.3f}   {:9.3f}   {:9.3f}     {:7.2f}      "
+                    "  {:20} {:9.3f}   {:9.3f}   {:9.3f}     {:7.2f}"
                 , data.name
                 , data.a[0]
                 , data.b[0] * 1e3
                 , data.c[0] * 1e-5
                 , data.T[0] - 273.15
             );
-            //"{:6.0f}         {:7.3f}         {:7.3f}     \n"
-            print_or_not (data.DHt[0],   "{:6.0f}", 6);
-            print_or_not (data.DVt[0],   "     {:7.3f}", 7 + 3);
+            if (data.max_phase_transition_count == 0)
+            {
+                puts ("");
+                continue;
+            }
+            print_or_not (data.DHt[0],   "       {:6.0f}", 6);
+            print_or_not (data.DVt[0],   "    {:7.3f}", 6 + 3);
             print_or_not (data.dP_dT[0], "{:7.3f}", 7 + 3);
             puts ("");
-            for (auto i = 1; i <= data.phase_transition_count; ++i)
+            for (auto i = 1; i <= data.max_phase_transition_count; ++i)
             {
                 print (
-                      "    post-transition {:1d}  {:9.3f}   {:9.3f}   {:9.3f}     {:7.2f}       "
+                      "    post-transition {:1d}  {:9.3f}   {:9.3f}   {:9.3f}     {:7.2f}"
                     , i
-                    , (i == data.phase_transition_count ? data.a_n : data.a[i])
-                    , (i == data.phase_transition_count ? data.b_n : data.b[i]) * 1e3
-                    , (i == data.phase_transition_count ? data.c_n : data.c[i]) * 1e-5
-                    , (i == data.phase_transition_count ? data.T_max : data.T[i]) - 273.15
+                    , (data.a[i])
+                    , (data.b[i]) * 1e3
+                    , (data.c[i]) * 1e-5
+                    , (data.T[i]) - 273.15
                 );
+                print_or_not (data.DHt[i],   "       {:6.0f}", 6);
+                print_or_not (data.DVt[i],   "    {:7.3f}", 6 + 3);
+                print_or_not (data.dP_dT[i], "{:7.3f}", 7 + 3);
                 puts ("");
             }
         }
@@ -715,9 +821,9 @@ f (run_t const& run)
         for (const auto& [coeff, data]: aqueous_species)
         {
                 const auto
-            V = hkf::molar_volume (data, T, P);
+            V = hkf::molar_volume (data, T, P_in_bar);
                 const auto
-            cp = hkf::heat_capacity_isobaric (data, T, P);
+            cp = hkf::heat_capacity_isobaric (data, T, P_in_bar);
             println (
                   "  {:20}   {:10.0f}     {:10.0f}       {:8.3f}          {:2.0f}           {:6.1f}      "
                 , data.chemical_formula_structural
@@ -729,48 +835,280 @@ f (run_t const& run)
             );
         }
         // H2O
+            const auto
+        D = iapws::r6_inverse::density_pt (P_in_bar * 1e5, T);
         {
+            println (
+                  "  {:20}   {:10.0f}     {:10.0f}       {:8.3f}          {:2.0f}           {:6.1f}      "
+                , "H2O"
+                , h2o_standard_state_gibbs / joule_per_calorie 
+                , h2o_standard_state_enthalpy / joule_per_calorie 
+                , h2o_standard_state_entropy / joule_per_calorie 
+                , h2o_standard_state_molar_volume * 1000
+                , h2o_standard_state_isobaric_heat_capacity / joule_per_calorie
+            );
+                const auto
+            V_ = 1 / D * 1e6 * iapws::molar_mass;
+                const auto
+            Cp_ = 
+                  iapws::r6::massic_isobaric_heat_capacity_dt (D, T) 
+                * calorie_per_joule 
+                * iapws::molar_mass
+            ;
+                const auto
+            S_ = 
+                  iapws::r6::massic_entropy_dt (D, T) 
+                * calorie_per_joule
+                * iapws::molar_mass
+            ;
+                const auto
+            H_ = 
+                  iapws::r6::massic_enthalpy_dt (D, T) 
+                * calorie_per_joule 
+                * iapws::molar_mass
+            ;
+                const auto
+            G_ = H_ - T * S_;
+            println (
+                  "  {:20}  {:10.0f}     {:10.0f}        {:8.3f}       {:8.3f}        {:6.1f}      "
+                , "H2O (IAPWS)"
+                , G_
+                , H_
+                , S_
+                , V_
+                , Cp_
+            );
         }
+        // H2O, IAPWS
         /*
+            const auto
+        V_h2o = 1 / D * 1e6 * iapws::molar_mass;
+            const auto
+        Cp_h2o = 
+                iapws::r6::massic_isobaric_heat_capacity_dt (D, T) 
+            * calorie_per_joule 
+            * iapws::molar_mass
+        ;
+            const auto
+        S_h2o = 
+                iapws::r6::massic_entropy_dt (D, T) 
+            * calorie_per_joule
+            * iapws::molar_mass
+        ;
+            const auto
+        H_h2o = 
+                iapws::r6::massic_enthalpy_dt (D, T) 
+            * calorie_per_joule 
+            * iapws::molar_mass
+        ;
+            const auto
+        G_h2o = H_h2o - T * S_h2o;
+        */
+        // H2O, CODATA
+            const auto
+        G_h2o = h2o_standard_state_gibbs / joule_per_calorie;
+            const auto
+        H_h2o = h2o_standard_state_enthalpy / joule_per_calorie;
+            const auto
+        S_h2o = h2o_standard_state_entropy / joule_per_calorie;
+            const auto
+        V_h2o = h2o_standard_state_molar_volume * 1000;
+            const auto
+        Cp_h2o = h2o_standard_state_isobaric_heat_capacity / joule_per_calorie;
+            const auto
+        D_h2o = h2o_standard_state_molar_volume / iapws::molar_mass;
         print (header_aqueous_species_2);
         for (const auto& [coeff, data]: aqueous_species)
         {
-            print (
-                  "  {:20} {:9.3f}   {:9.3f}   {:9.3f}     {:7.2f}      \n"
+            println (
+                  "  {:20}    {:8.4f}      {:8.4f}      {:8.4f}      {:8.4f}      {:8.4f}      {:8.4f}      {:8.4f}"
                 , data.chemical_formula_structural
-                , data.a
-                , data.b * 1e3
-                , data.c * 1e-5
-                , data.T_max - 273.15
+                , data.a_1 * 1e1
+                , data.a_2 * 1e-2
+                , data.a_3
+                , data.a_4 * 1e-4
+                , data.c_1
+                , data.c_2 * 1e-4
+                , data.omega * 1e-5
             );
         }
-        */
-    }
-    /*
-    for (const auto& m: r.reactions[0].minerals)
-    {
-            const auto
-        index = sprons92::mineral_name_to_index.find (m.first);
-        if (index == sprons92::mineral_name_to_index.end ())
+
+// =============================================================================
+            constexpr auto
+        print_details = false;
+        if (print_details)
         {
-            print ("Mineral not found: {}\n", m.first);
-            exit (1);
+            println ("\n\n ==== Details of reaction calculations ====");
         }
+        // FIXME: for each reaction
             const auto&
-        data = sprons92::minerals.at (index->second);
+        reaction = run.reactions.at (0);
+            auto
+        V = 0.;
+            auto
+        Cp = 0.;
+            auto
+        S = 0.;
+            auto
+        H = 0.;
+            auto
+        G = 0.;
+        if (print_details)
+        {
+            print (header_minerals_1);
+        }
+        for (const auto& [coeff, data]: minerals)
+        {
+                const auto
+            [ V_, Cp_, S_, H_, G_ ] = hkf::thermodynamic_properties (data, T_ref, P_ref);
+            V  += V_  * coeff;
+            Cp += Cp_ * coeff;
+            S  += S_  * coeff;
+            H  += H_  * coeff;
+            G  += G_  * coeff;
+            if (print_details)
+            {
+                println (
+                      "  {:20}  {:10.0f}     {:10.0f}        {:8.3f}       {:8.3f}        {:6.1f}      {:6.1f}"
+                    , data.name
+                    , G_
+                    , H_
+                    , S_
+                    , V_
+                    , Cp_
+                    , coeff
+                );
+            }
+        }
+        if (print_details)
+        {
+            print (header_gases_1);
+        }
+        for (const auto& [coeff, data]: gases)
+        {
+                const auto
+            [ V_, Cp_, S_, H_, G_ ] = hkf::thermodynamic_properties (data, T_ref, P_ref);
+            V  += V_  * coeff;
+            Cp += Cp_ * coeff;
+            S  += S_  * coeff;
+            H  += H_  * coeff;
+            G  += G_  * coeff;
+            if (print_details)
+            {
+                println (
+                    "  {:20}  {:10.0f}     {:10.0f}        {:8.3f}       {:8.3f}        {:6.1f}      {:6.1f}"
+                    , data.name
+                    , G_
+                    , H_
+                    , S_
+                    , V_
+                    , Cp_
+                    , coeff
+                );
+            }
+        }
+        if (print_details)
+        {
+            print (header_aqueous_species_1);
+        }
+        for (const auto& [coeff, data]: aqueous_species)
+        {
+                const auto
+            dDdP = 1 / iapws::r6::d_pressure_d_density_dt (D, T);
+                const auto
+            dEdD = iapws::r8::d_relative_permittivity_d_density_at_temperature_dt (D, T);
+                const auto
+            dDdT = iapws::r6::d_density_d_temperature_dt (D, T);
+                const auto
+            dEdT = iapws::r8::d_relative_permittivity_d_temperature_at_density_dt (D, T);
+                const auto
+            d2EdT = iapws::r8::d_relative_permittivity_d2_temperature_at_pressure_dt(D, T, dDdT);
+                const auto
+            E = iapws::r8::relative_permittivity_dt (D, T);
+                const auto
+            Q = born::q (E, dDdP, dEdD);
+                const auto
+            Z = born::z (E);
+                const auto
+            Y = born::y (E, dEdT, dEdD, dDdT);
+                const auto
+            X = born::x (E, d2EdT, Y);
+                const auto
+            [ V_, Cp_, S_, H_, G_ ] = hkf::thermodynamic_properties (
+                  data
+                , T_ref
+                , P_ref
+                , D
+                , Q
+                , Z
+                , Y
+                , X
+            );
+            V  += V_  * coeff;
+            Cp += Cp_ * coeff;
+            S  += S_  * coeff;
+            H  += H_  * coeff;
+            G  += G_  * coeff;
+            if (print_details)
+            {
+                println (
+                    "  {:20}  {:10.0f}     {:10.0f}        {:8.3f}       {:8.3f}        {:6.1f}      {:6.1f}"
+                    , data.name
+                    , G_
+                    , H_
+                    , S_
+                    , V_
+                    , Cp_
+                    , coeff
+                );
+            }
+        }
+        // H2O
+        {
+            V  += V_h2o  * reaction.h2o;
+            Cp += Cp_h2o * reaction.h2o;
+            S  += S_h2o  * reaction.h2o;
+            H  += H_h2o  * reaction.h2o;
+            G  += G_h2o  * reaction.h2o;
+            if (print_details)
+            {
+                println (
+                    "  {:20}  {:10.0f}     {:10.0f}        {:8.3f}       {:8.3f}        {:6.1f}      {:6.1f}"
+                    , "H2O"
+                    , G_h2o
+                    , H_h2o
+                    , S_h2o
+                    , V_h2o
+                    , Cp_h2o
+                    , reaction.h2o
+                );
+            }
+        }
+        if (print_details)
+        {
+            println ("\n\n ==== End of details of reaction calculations ====");
+        }
+        print (header_reaction_standard_state);
             const auto
-        T = 273.16 + 25.;
-            const auto
-        cp = data.a[0] + data.b[0] * T + data.c[0] / T / T;
-        puts ("STANDARD STATE PROPERTIES OF THE SPECIES AT 25 DEG C AND 1 BAR\n");
-        print ("{}  {} {} {} {} {}\n", data.name, data.DG, data.DH, data.S, data.V, cp);
+        log_K = -G / std::numbers::ln10 / gas_constant / T;
+        println (
+            "   {:8.3f}    {:8.3f}    {:8.3f}    {:8.3f}  {:10.0f}   {:10.0f}   {:8.3f}   {:8.3f}   {:8.3f}"
+            , P_ref
+            , T_ref - 273.15
+            , D_h2o
+            , log_K
+            , G
+            , H
+            , S
+            , V
+            , Cp
+        );
     }
-    */
 }
 
 
     int
 main ()
 {
-    f (skarn);
+    supcrt92 (skarn);
 }
