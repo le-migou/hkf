@@ -456,7 +456,6 @@ P_ref_in_bar = 1.; // bar
     auto
 compute_properties (data_mineral_t const& data, auto const& T, auto const& P)
 {
-println ("  {} at {}, {}", data.name, T, P);
         using std::min;
         const auto
     P_in_bar = P * 1e-5;
@@ -482,15 +481,11 @@ println ("  {} at {}, {}", data.name, T, P);
         auto
     G =
           data.DG
+        - data.S * (T - T_ref)
         + detail::int_Cp_dT (Ta, Tb, data.a[0], data.b[0], data.c[0])
         - detail::int_Cp_dlnT (Ta, Tb, data.a[0], data.b[0], data.c[0]) * T
         + int_V_dP
     ;
-println ("      DG= {}", data.DG);
-println ("      Cp_dT= {}", detail::int_Cp_dT (Ta, Tb, data.a[0], data.b[0], data.c[0]));
-println ("      Cp_dlnT= {}", -detail::int_Cp_dlnT (Ta, Tb, data.a[0], data.b[0], data.c[0]) * T);
-println ("      V_dP= {}", int_V_dP);
-println ("    G= {}", G);
     // Phase transitions at T_t_i, P_t_i (phi_P), volume terms
     {
             int
@@ -515,7 +510,6 @@ println ("    G= {}", G);
             int_V_dP += int_V_dP_tran;
             H -= int_V_dP_tran;
             G -= int_V_dP_tran;
-println ("    G= {}", G);
         }
     }
     // Phase transitions at T_t_i, P_r (phi_T), Cp terms
@@ -540,7 +534,6 @@ println ("    G= {}", G);
             - int_Cp_dlnT * T
             + data.DHt[phase_index] * (T / data.T[phase_index] - 1)
         ;
-println ("    G= {}", G);
     }
         const auto
     Cp = detail::Cp (
@@ -630,8 +623,8 @@ println ("    G= {}", G);
         G = G + GVterm;
         S = S + SVterm;
         H = H + GVterm + T * SVterm;
-println ("    G= {}", G);
     }
+println ("    {} DV= {}", data.name, V);
     // Back to SI
     return molal_properties_t { 
           V * 1e-6
@@ -647,7 +640,6 @@ println ("    G= {}", G);
     auto
 compute_properties (data_gas_t const& data, auto const& T, auto const& P)
 {
-println ("{} at {}, {}", data.name, T, P);
         const auto
     P_in_bar = P * 1e-5;
         const auto
@@ -668,11 +660,11 @@ println ("{} at {}, {}", data.name, T, P);
         const auto
     G =
           data.DG
+        - data.S * (T - T_ref)
         + detail::int_Cp_dT (T_ref, T, data.a, data.b, data.c)
         - detail::int_Cp_dlnT (T_ref, T, data.a, data.b, data.c) * T
         + int_V_dP
     ;
-println ("  G= {}", G);
         const auto
     Cp = detail::Cp (
           T
@@ -680,6 +672,7 @@ println ("  G= {}", G);
         , data.b
         , data.c
     );
+println ("    {} DV= {}", data.name, V);
     // Back to SI
     return molal_properties_t { 
           V * 1e-6
@@ -702,7 +695,6 @@ compute_properties (
     , auto const& Y
     , auto const& X
 ){
-println ("{} at {}, {}", data.name, T, P);
         const auto
     P_in_bar = P * 1e-5;
     // V, eq. 45
@@ -745,6 +737,15 @@ println ("{} at {}, {}", data.name, T, P);
         - omega * Q
         - (Z + 1) * domegadp
     );
+println ("      a1: {}", data.a_1                              );
+println ("      a2: {}", data.a_2 / P_plus_Psi                 );
+println ("      a3: {}", data.a_3 / T_minus_Omega              );
+println ("      a4: {}", data.a_4 / P_plus_Psi / T_minus_Omega );
+println ("      Vq: {}", - omega * Q - (Z + 1) * domegadp);
+println ("      w : {}", omega);
+println ("      Q : {}", Q);
+println ("      Z : {}", Z);
+println ("      dw: {}", domegadp);
     // Cp, eq. 62
         const auto
     dgdt = detail::dg_dt(T, D, P_in_bar);
@@ -847,7 +848,7 @@ println ("{} at {}, {}", data.name, T, P);
         + data.omega * (Z_at_Pr_Tr + 1)
         + data.omega * Y_at_Pr_Tr * (T - T_ref)
     ;
-println ("  G= {}", G);
+println ("    {} DV= {}", data.name, V);
     // Back to SI
     return molal_properties_t { 
           V * 1e-6
@@ -959,16 +960,16 @@ compute_properties (
         properties = compute_properties (data, T, P);
         r.minerals.emplace_back (properties);
         r.reaction += properties * mineral.coefficient;
-println ("{} ({}, {}, {})", r.reaction.gibbs_energy * calorie_per_joule, properties.gibbs_energy * calorie_per_joule, mineral.coefficient, data.name);
     }
+println ("  DV= {}", r.reaction.volume);
     for (const auto& [gas, data]: zip (reaction.gases, reaction_data.gases))
     {
             const auto
         properties = compute_properties (data, T, P);
         r.gases.emplace_back (properties);
         r.reaction += properties * gas.coefficient;
-println ("{} ({}, {}, {})", r.reaction.gibbs_energy * calorie_per_joule, properties.gibbs_energy * calorie_per_joule, gas.coefficient, data.name);
     }
+println ("  DV= {}", r.reaction.volume);
     for (const auto& [aqueous_species, data]: zip (reaction.aqueous_species, reaction_data.aqueous_species))
     {
             const auto
@@ -984,10 +985,10 @@ println ("{} ({}, {}, {})", r.reaction.gibbs_energy * calorie_per_joule, propert
         );
         r.aqueous_species.emplace_back (properties);
         r.reaction += properties * aqueous_species.coefficient;
-println ("{} ({}, {}, {})", r.reaction.gibbs_energy * calorie_per_joule, properties.gibbs_energy * calorie_per_joule, aqueous_species.coefficient, data.name);
     }
+println ("  DV= {}", r.reaction.volume);
     r.reaction += r.h2o * reaction.h2o;
-println ("{} ({}, {}, {})", r.reaction.gibbs_energy * calorie_per_joule, r.h2o.gibbs_energy * calorie_per_joule, reaction.h2o, "h2o");
+println ("  DV= {}", r.reaction.volume);
     return r;
 }
 } // namespace calculisto::thermodynamics::hkf

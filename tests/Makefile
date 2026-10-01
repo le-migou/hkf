@@ -16,6 +16,7 @@ tests: \
 	tests.o \
 	test_born.o \
 	test_dielectric_constant_sverjensky_2014.o \
+	test_dielectric_constant_uematsu_1980.o \
 	test_eos_h2o_zhang_duan_2005.o \
 	test_hkf.o \
 	test_supcrt92.o \
@@ -26,6 +27,7 @@ check: tests
 
 test_born.o:                                test_born.cpp                                 ../include/calculisto/hkf/born.hpp
 test_dielectric_constant_sverjensky_2014.o: test_dielectric_constant_sverjensky_2014.cpp  ../include/calculisto/hkf/dielectric_constant_sverjensky_2014.hpp
+test_dielectric_constant_uematsu_1980.o:    test_dielectric_constant_uematsu_1980.cpp     ../include/calculisto/hkf/dielectric_constant_uematsu_1980.hpp
 test_eos_h2o_zhang_duan_2005.o:             test_eos_h2o_zhang_duan_2005.cpp              ../include/calculisto/hkf/eos_h2o_zhang_duan_2005.hpp
 test_hkf.o:                                 test_hkf.cpp                                  ../include/calculisto/hkf/hkf.hpp
 test_supcrt92.o:                            test_supcrt92.cpp                             ../include/calculisto/hkf/supcrt92.hpp

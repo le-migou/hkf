@@ -3,12 +3,6 @@
 #include <numbers>
     using std::numbers::pi;
 
-#include <fmt/format.h>
-    using fmt::println;
-
-#include <calculisto/auto_diff/dual.hpp>
-    using calculisto::auto_diff::dual_t;
-
     namespace
 calculisto::thermodynamics
 {

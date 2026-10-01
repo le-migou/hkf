@@ -173,7 +173,7 @@ TEST_CASE("hkf")
     );
     for (auto const& expected: skarn_result)
     {
-        if (not (expected.T == Approx { 500. } &&  expected.P == Approx { 5000. }))
+        if (not (expected.T == Approx { 500. } &&  expected.P == Approx { 1000. }))
         {
             continue;
         }

@@ -854,4 +854,21 @@ d_density_d_temperature_density_at_pressure_temperature_dt (
     d_dr_d_dr_tr =  - (dN * D - N * dD) / D / D;
     return - reduced_temperature / temperature * d_dr_d_dr_tr;
 }
+
+    auto
+pressure_dt (auto const& density, auto const& temperature)
+{
+        auto const
+    reduced_density = density * 1e-3 / critical_density;
+        const auto
+    reduced_temperature = critical_temperature / temperature;
+    return 
+          detail::z_dr_tr (reduced_density, reduced_temperature) 
+        * molar_gas_constant
+        * temperature
+        * density * 1e-3
+        / molar_mass
+        * 1e5
+    ;
+}
 } // namespace calculisto::thermodynamics::eos::water::zhang_2005
